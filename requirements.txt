@@ -1,0 +1,6 @@
+langchain-core
+langchain-community
+langchain-openai
+langgraph
+chromadb
+rank_bm25
