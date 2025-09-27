@@ -10,7 +10,12 @@ from pathlib import Path
 from vectorStoreManager import VectorStoreManager
 
 class KnowledgeBaseManager(VectorStoreManager):
-    """Manages the creation and access of the knowledge base vector store."""
+    """
+    Manages the creation and access of the knowledge base vector store.
+    This class is responsible for loading documents from a specified directory,
+    splitting them into chunks, and creating a hybrid retriever that combines
+    vector-based search with BM25 keyword search.
+    """
     
     def __init__(self, 
                  embeddings: OpenAIEmbeddings = None,
@@ -20,6 +25,18 @@ class KnowledgeBaseManager(VectorStoreManager):
                  chunk_size: int = 1000,
                  chunk_overlap: int = 200,
                  force_reindex: bool = False):
+        """
+        Initializes the KnowledgeBaseManager.
+
+        Args:
+            embeddings (OpenAIEmbeddings, optional): Embeddings model. Defaults to None.
+            kb_path (str, optional): Path to the knowledge base directory. Defaults to "kb".
+            persist_directory (str, optional): Directory to persist the vector store. Defaults to "./vector_stores/knowledge_base".
+            collection_name (str, optional): Name of the collection in the vector store. Defaults to "rag_knowledge".
+            chunk_size (int, optional): Size of text chunks. Defaults to 1000.
+            chunk_overlap (int, optional): Overlap between text chunks. Defaults to 200.
+            force_reindex (bool, optional): Whether to force re-indexing of the knowledge base. Defaults to False.
+        """
         
         self.embeddings = embeddings or OpenAIEmbeddings()
         self.kb_path = Path(kb_path)
@@ -29,10 +46,11 @@ class KnowledgeBaseManager(VectorStoreManager):
         self.chunk_overlap = chunk_overlap
         self.force_reindex = force_reindex
         
-
+        # Load and split documents
         docs = self._load_documents_from_kb()
         self.splits = self._split_documents(docs)
-        # Call the parent class to handle vector store creation
+
+        # Initialize the parent VectorStoreManager to create the vector store
         super().__init__(
             embeddings=self.embeddings,
             persist_directory=persist_directory,
@@ -41,8 +59,13 @@ class KnowledgeBaseManager(VectorStoreManager):
             splits=self.splits
         )
     
-    def _load_documents_from_kb(self):
-        """Load all .txt files from kb_path directory."""
+    def _load_documents_from_kb(self) -> List[Document]:
+        """
+        Loads all .txt files from the specified knowledge base path.
+
+        Returns:
+            List[Document]: A list of loaded documents.
+        """
         print(f"Indexing knowledge base from {self.kb_path}/ directory...")
         docs: List[Document] = []
 
@@ -61,86 +84,43 @@ class KnowledgeBaseManager(VectorStoreManager):
         
         return docs
 
-    
-    def _split_documents(self, docs: List[Document]):
-        """Split documents into chunks using RecursiveCharacterTextSplitter."""
+    def _split_documents(self, docs: List[Document]) -> List[Document]:
+        """
+        Splits documents into chunks using RecursiveCharacterTextSplitter.
+
+        Args:
+            docs (List[Document]): The documents to be split.
+
+        Returns:
+            List[Document]: A list of document chunks.
+        """
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=self.chunk_size, 
             chunk_overlap=self.chunk_overlap
         )
         return text_splitter.split_documents(docs) if docs else []
 
-
     def get_retriever(self, k: int = 5):
         """
-        Creates a hybrid retriever for the knowledge base.
+        Creates a hybrid retriever for the knowledge base, combining vector search
+        with BM25 keyword search for more robust retrieval.
+
+        Args:
+            k (int, optional): The number of documents to retrieve. Defaults to 5.
+
+        Returns:
+            EnsembleRetriever or VectorStoreRetriever: A hybrid retriever if splits are available,
+                                                       otherwise a standard vector retriever.
         """
         vector_retriever = super().get_retriever(k)
         if self.splits:
+            # Create a BM25 retriever for keyword-based search
             bm25_retriever = BM25Retriever.from_documents(self.splits, k=k)
+            # Combine vector and BM25 retrievers using an ensemble retriever
             return EnsembleRetriever(
                 retrievers=[vector_retriever, bm25_retriever],
-                weights=[0.5, 0.5]
+                weights=[0.5, 0.5]  # Equal weighting for both retrievers
             )
         else:
             print("No document splits available for BM25. Using vector-only retrieval.")
             return vector_retriever
-
-
-if __name__ == "__main__":
-    # Example usage:
-    # This will create a new one from the 'kb' directory.
-    print("--- Initializing KnowledgeBaseManager ---")
-    kb_manager = KnowledgeBaseManager(
-        kb_path="kb",
-        persist_directory="./my_vector_stores/knowledge_base",
-        collection_name="rag_knowledge_base",
-        chunk_size=200,
-        chunk_overlap=50,
-        force_reindex=False
-    )
-
-    # Get the hybrid retriever
-    retriever = kb_manager.get_retriever(k=3)
-    
-    # Perform a test retrieval
-    test_query = "What are the common applications of LLMs?"
-    print(f"\n--- Testing retrieval for query: '{test_query}' ---")
-    retrieved_docs = retriever.invoke(test_query)
-    
-    # Print the retrieved documents
-    print(f"Retrieved {len(retrieved_docs)} documents:")
-    for i, doc in enumerate(retrieved_docs):
-        print(f"\n--- Document {i+1} ---")
-        print(doc.page_content)
-        print("-" * 20)
-
-
-
-    #this will load an existing vector store
-
-    print("test the reasigning ------------------  ")
-    del kb_manager
-    kb_manager = KnowledgeBaseManager(
-        kb_path="kb",
-        persist_directory="./my_vector_stores/knowledge_base",
-        collection_name="rag_knowledge_base",
-        chunk_size=200,
-        chunk_overlap=50,
-        force_reindex=False
-    )
-
-    retriever = kb_manager.get_retriever(k=3)
-    
-    # Perform a test retrieval
-    test_query = "What are the common applications of RAG?"
-    print(f"\n--- Testing retrieval for query: '{test_query}' ---")
-    retrieved_docs = retriever.invoke(test_query)
-    
-    # Print the retrieved documents
-    print(f"Retrieved {len(retrieved_docs)} documents:")
-    for i, doc in enumerate(retrieved_docs):
-        print(f"\n--- Document {i+1} ---")
-        print(doc.page_content)
-        print("-" * 20)
-
