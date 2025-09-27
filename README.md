@@ -7,7 +7,9 @@ This project implements an advanced Retrieval-Augmented Generation (RAG) chatbot
 *   **Retrieval-Augmented Generation (RAG):** The chatbot retrieves relevant information from a knowledge base before generating a response, ensuring answers are grounded in provided data.
 *   **LangGraph Orchestration:** The entire workflow is orchestrated using LangGraph, providing a clear and maintainable structure for the different stages of processing a query.
 *   **Hybrid Memory:** The chatbot utilizes a hybrid memory system, combining both a traditional chat history and a vector-based memory for more nuanced context management.
-*   **Query Deconstruction:** User queries are deconstructed to identify the core question and any necessary context from the chat history.
+*   **Long-Term Memory:** Utilizes a vector database to store and access previous messages, enabling the chatbot to maintain context over extended conversations.
+*   **Query Deconstruction:** User queries are deconstructed into sub-queries to identify the core question and any necessary context from the chat history.
+*   **Reciprocal Rank Fusion (RRF):** Employs RRF to effectively combine and re-rank documents obtained from multiple sub-queries, ensuring the most relevant information is presented.
 *   **Debug Mode:** A debug flag allows for streaming the output of each step in the LangGraph workflow, providing insight into the chatbot's internal workings.
 *   **Vector Store Management:** The project includes functionality for creating and managing a vector store for the knowledge base.
 
@@ -67,8 +69,8 @@ This project implements an advanced Retrieval-Augmented Generation (RAG) chatbot
 The chatbot operates in the following sequence, orchestrated by LangGraph:
 
 1.  **Store Memory:** The user's query is stored in the chat history.
-2.  **Deconstruct Query:** The query is analyzed, and a search query is generated based on the current question and the chat history.
-3.  **Retrieve Info:** Relevant documents are retrieved from the knowledge base and the vector-based memory.
+2.  **Deconstruct Query:** The query is analyzed and broken down into sub-queries. A search query is generated based on the current question and the chat history.
+3.  **Retrieve Info:** Relevant documents are retrieved from the knowledge base and the vector-based memory for each sub-query. Reciprocal Rank Fusion (RRF) is then applied to combine these documents into a single, highly relevant list.
 4.  **Generate:** The retrieved information and the original query are passed to the language model to generate a final answer.
 
 This entire process is managed as a stateful graph, allowing for robust and flexible conversational AI.
